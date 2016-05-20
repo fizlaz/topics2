@@ -108,7 +108,8 @@ log_return <- function(vec){
     rtrn[i] <- vec[i]/vec[(i-1)]-1
   }
   
-  logrtrn <- 100*log(1+rtrn)
+  #logrtrn <- 100*log(1+rtrn)
+  logrtrn <- log(1+rtrn)
   
   #v2
   #   logrtrn <- rep(0,length(vec))
@@ -324,5 +325,53 @@ cv.nn <- function(train, size=10, rounds=250){
 
 
 cvnn <- cv.nn(training)
+
+
+#############
+library(caret)
+set.seed(1234)
+trainIndex <- createDataPartition(training$target, p=0.80, list=FALSE)
+data_train <- training[ trainIndex,]
+data_test <- training[-trainIndex,]
+data_train <- training[ c(1:1400),]
+data_test <- training[-c(1:1400),]
+
+library(h2o)
+localH2O = h2o.init(nthreads=-1)
+
+data_train_h <- as.h2o(data_train,destination_frame = "h2o_data_train")
+data_test_h <- as.h2o(data_test,destination_frame = "h2o_data_test")
+
+
+y <- "target"
+x <- setdiff(names(data_train_h), y)
+
+
+#grid search
+hidden_opt <- list(c(200,200), c(100,300,100), c(500,500,500))
+l1_opt <- c(1e-5,1e-7)
+hyper_params <- list(hidden = hidden_opt, l1 = l1_opt)
+
+model_grid <- h2o.grid("deeplearning",
+                        hyper_params = hyper_params,
+                        x = (2:ncol(data_train_h)),
+                        y = 1,
+                        #distribution = "multinomial",
+                        training_frame = data_train_h,
+                        validation_frame = data_test_h)
+
+# print out the Test MSE for all of the models
+for (model_id in model_grid@model_ids) {
+  model <- h2o.getModel(model_id)
+  mse <- h2o.mse(model, valid = TRUE)
+  #mse <- h2o.mse(model, valid = FALSE)
+  print(sprintf("Test set MSE: %f", mse))
+}
+
+
+
+
+
+h2o.shutdown()
 
 # Q4
