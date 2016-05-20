@@ -83,6 +83,7 @@ df$rtrn2 <- df$rtrn^2
 
 acf(df$rtrn)
 acf(df$rtrn2)
+pacf(df$rtrn2)
 Box.test(df$rtrn, type = "Ljung-Box")
 Box.test(df$rtrn2, type = "Ljung-Box")
 plot(df$rtrn, type="l")
@@ -95,7 +96,7 @@ ar
 ga <- garch(df$rtrn2)
 ga
 
-arma_gar <- garchFit(formula = ~arma(1,1)+garch(1,1), data = df$rtrn2)
+arma_gar <- garchFit(formula = ~arma(1,1)+garch(1,1), data = df$rtrn)
 
 # Q3
 
@@ -177,6 +178,13 @@ library(caret) ##for some data handling functions
 library(Metrics)##Measures of prediction error:mse, mae
 library(xts)
 
+
+library(caret)
+set.seed(1234)
+trainIndex <- createDataPartition(training$target, p=0.80, list=FALSE)
+data_train <- training[ trainIndex,]
+data_test <- training[-trainIndex,]
+
 ##Train model
 ##############################################
 ##OPTION LAZY: one svm, one nnet built w/o tuning  (or tune by hand)
@@ -192,7 +200,7 @@ gam <- 0.01
 cost <- 0.11
 ##The higher the cost produce less support vectors, increases accuracy
 ##However we may overfit
-svmFit = svm (training[,-1], training[,1],
+svmFit = svm (data_train[,-1], data_train[,1],
               #type=type, 
               kernel= "radial",
               gamma=gam,
@@ -200,7 +208,9 @@ svmFit = svm (training[,-1], training[,1],
 )
 summary(svmFit)
 ##build predictor
-predsvm = predict(svmFit, testing[,-ncol(testing)])
+predsvm = predict(svmFit, data_test[,-1])
+
+mse(data_test[,1],predsvm)
 
 #########TUNING
 
@@ -296,21 +306,21 @@ cv.nn <- function(train, size=10, rounds=250){
       ktest <- train[flds[[j]],]
       ktrain <- train[-flds[[j]],]
 
-      print("fold")
-      print(j) # tracing progress
-      print(nnpred)
+      #print("fold")
+      #print(j) # tracing progress
+      #print(nnpred)
 
       size=6
-      #nnetFit = nnet(ktrain[,-1], ktrain[,1],
-      #         size=size,skip=T, maxit=10^4,decay=10^{-2},trace=F,linout=T)
-
       nnetFit = nnet(ktrain[,-1], ktrain[,1],
-               size=size, linout=T)
+               size=size,skip=T, maxit=10^4,decay=10^{-2},trace=F,linout=T)
+
+      #nnetFit = nnet(ktrain[,-1], ktrain[,1],
+      #         size=size, linout=T)
 
       prednet<-predict(nnetFit,ktest[,-1],type="raw")
 
 
-      print(mse(ktest[,1],prednet))
+      #print(mse(ktest[,1],prednet))
 
       nnpred[j] <- mse(ktest[,1],prednet)
 
@@ -318,14 +328,73 @@ cv.nn <- function(train, size=10, rounds=250){
     avg <- mean(nnpred)
 
     print(nnpred)
-    
-    return(list(vec=nnpred,avg=avg))
+    print(avg)
+    return(list(folds=nnpred,average=avg))
 
 } # end of cv.nn
 
 
 cvnn <- cv.nn(training)
+cv.nn(training1)
+cv.nn(training2)
 
+cv.svm <- function(train){
+
+  library(nnet)
+
+  c <- which(colnames(train)=="target")
+
+    library(caret)
+    set.seed(1234)
+    flds <- createFolds(train$target,k=5)
+    nnpred <- rep(NA,5)
+
+    for(j in 1:5){
+      ktest <- train[flds[[j]],]
+      ktrain <- train[-flds[[j]],]
+
+      #print("fold")
+      #print(j) # tracing progress
+      #print(nnpred)
+
+      gam <- 0.01
+      cost <- 0.11
+      ##The higher the cost produce less support vectors, increases accuracy
+      ##However we may overfit
+      svmFit = svm (data_train[,-1], data_train[,1],
+              #type=type, 
+              kernel= "radial",
+              gamma=gam,
+              cost=cost
+      )
+      summary(svmFit)
+      ##build predictor
+      predsvm = predict(svmFit, data_test[,-1])
+
+      mse(data_test[,1],predsvm)
+      
+      size=6
+      nnetFit = nnet(ktrain[,-1], ktrain[,1],
+               size=size,skip=T, maxit=10^4,decay=10^{-2},trace=F,linout=T)
+
+      #nnetFit = nnet(ktrain[,-1], ktrain[,1],
+      #         size=size, linout=T)
+
+      prednet<-predict(nnetFit,ktest[,-1],type="raw")
+
+
+      #print(mse(ktest[,1],prednet))
+
+      nnpred[j] <- mse(ktest[,1],prednet)
+
+    } # end of looping cross validations
+    avg <- mean(nnpred)
+
+    print(nnpred)
+    print(avg)
+    return(list(folds=nnpred,average=avg))
+
+} # end of cv.nn
 
 #############
 library(caret)
