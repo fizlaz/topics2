@@ -294,6 +294,7 @@ prednet<-predict(nnetFit,testing[,-ncol(testing)],type="raw")
 cv.nn <- function(train, size=10, rounds=250){
 
   library(nnet)
+  library(Metrics)
 
   c <- which(colnames(train)=="target")
 
@@ -338,9 +339,11 @@ cvnn <- cv.nn(training)
 cv.nn(training1)
 cv.nn(training2)
 
+
 cv.svm <- function(train){
 
-  library(nnet)
+  library(e1071)
+  library(Metrics)
 
   c <- which(colnames(train)=="target")
 
@@ -361,31 +364,20 @@ cv.svm <- function(train){
       cost <- 0.11
       ##The higher the cost produce less support vectors, increases accuracy
       ##However we may overfit
-      svmFit = svm (data_train[,-1], data_train[,1],
+      svmFit = svm (ktrain[,-1], ktrain[,1],
               #type=type, 
               kernel= "radial",
               gamma=gam,
               cost=cost
       )
-      summary(svmFit)
-      ##build predictor
-      predsvm = predict(svmFit, data_test[,-1])
-
-      mse(data_test[,1],predsvm)
       
-      size=6
-      nnetFit = nnet(ktrain[,-1], ktrain[,1],
-               size=size,skip=T, maxit=10^4,decay=10^{-2},trace=F,linout=T)
+      ##build predictor
+      predsvm = predict(svmFit, ktest[,-1])
 
-      #nnetFit = nnet(ktrain[,-1], ktrain[,1],
-      #         size=size, linout=T)
+      mse(ktest[,1],predsvm)
+      
 
-      prednet<-predict(nnetFit,ktest[,-1],type="raw")
-
-
-      #print(mse(ktest[,1],prednet))
-
-      nnpred[j] <- mse(ktest[,1],prednet)
+      nnpred[j] <- mse(ktest[,1],predsvm)
 
     } # end of looping cross validations
     avg <- mean(nnpred)
@@ -394,7 +386,11 @@ cv.svm <- function(train){
     print(avg)
     return(list(folds=nnpred,average=avg))
 
-} # end of cv.nn
+} # end of cv.svm
+
+cv.svm(training)
+cv.svm(training1)
+cv.svm(training2)
 
 #############
 library(caret)
@@ -436,9 +432,6 @@ for (model_id in model_grid@model_ids) {
   #mse <- h2o.mse(model, valid = FALSE)
   print(sprintf("Test set MSE: %f", mse))
 }
-
-
-
 
 
 h2o.shutdown()
